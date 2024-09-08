@@ -47,13 +47,13 @@ int main(void)
     Blue_Score = Fram_Read(301);  // Blue팀 점수 Fram에서 불러오기
 	System_Clear();	              // 시스템 초기화
 	while(1) {
-        if(Red_Turn == 1) {
+        if(Red_Turn == 1 && Blue_Turn == 0) {
             switch(JOY_Scan()) {
                 case JOY_LEFT:	                    //Joy_Left 입력시
                     BEEP();							//부저 1회
                     if(Red_x > 0)                   //Red x좌표가 1이상일때
                         Red_x -= 1;					//Red x좌표가 1 감소
-                    /*좌표 최신화*/
+                    //좌표 최신화
                     LCD_SetTextColor(RGB_RED);
                     LCD_DisplayChar(9, 2, Red_x + 0x30);
                 break;
@@ -84,13 +84,13 @@ int main(void)
             }	//switch(JOY_Scan()) end
         }//if(Red_Turn == 1) end
 
-        else if(Blue_Turn == 1) {
+        else if(Blue_Turn == 1 && Red_Turn == 0) {
             switch(JOY_Scan()) {
                 case JOY_LEFT:	                    //Joy_Left 입력시
                     BEEP();						    //부저 1회
                     if(Blue_x > 0)                  //Blue x좌표가 1이상일때
                         Blue_x -= 1;	        	//Blue x좌표가 1 감소
-                    /*좌표 최신화*/
+                    //좌표 최신화
                     LCD_SetTextColor(RGB_BLUE);         
                     LCD_DisplayChar(9, 14, Blue_x + 0x30);
                 break;
@@ -123,7 +123,7 @@ int main(void)
 	}  //whlie(1) end	
 } // main() end
 
-/* GPIO (GPIOG(LED), GPIOH(Switch), GPIOF(Buzzer)) 초기 설정	*/
+/* GPIO (GPIOG(LED), GPIOI(JoyStick), GPIOF(Buzzer)) 초기 설정	*/
 void _GPIO_Init(void)
 {
 	// Buzzer (GPIO F) 설정 : Output mode
@@ -143,18 +143,13 @@ void _GPIO_Init(void)
 	GPIOG->OSPEEDR 	|=  0x00004001;	// GPIOG 0,7 : Output speed 25MHZ Medium speed 
 	// PUPDR : Default (floating)
 
-	// Switch (GPIO H) 설정 : SW0(PH8), SW7(PH15) Input mode 1100
-	// RCC->AHB1ENR    |=  0x00000080;	// RCC_AHB1ENR : GPIOH(bit#7) Enable				
-	// GPIOH->MODER 	&= ~0xC0010000;	// GPIOH 8,15 : Input mode				
-	// GPIOH->PUPDR 	&= ~0xC0010000;	// GPIOH 8,15 : Floating Input (No Pull-up, pull-down) :reset state
-
 	//Joy Stick SW(GPIO I) 설정 : Input mode(PI5 ~ PI9)
 	RCC->AHB1ENR	|=  0x00000100;	// RCC_AHB1ENR GPIOI Enable
-	GPIOI->MODER	&= ~0x000FF000;	// GPIOI 5~9 : Input mode (reset state)
-	GPIOI->PUPDR	&= ~0x000FF000;	// GPIOI 5~9 : Floating input (No Pull-up, pull-down) (reset state)
+	GPIOI->MODER	&= ~0x000FF000;	// GPIOI 6~9 : Input mode (reset state)
+	GPIOI->PUPDR	&= ~0x000FF000;	// GPIOI 6~9 : Floating input (No Pull-up, pull-down) (reset state)
 }
 
-/*  EXTI8,9(PH 8-SW0, NAVI_PUSH-PI5)
+/*  EXTI8,9(PH 8-SW0, JOY_PUSH-PI5)
 	EXTI15(PH15, SW7))초기 설정  */
 void _EXTI_Init(void)
 {
@@ -166,14 +161,14 @@ void _EXTI_Init(void)
 	// EXTI15 <- PH15 
 	// EXTICR3(EXTICR[2]), EXTICR4(EXTICR[3])를 이용 
 	// reset value: 0x0000
-    SYSCFG->EXTICR[2] &= ~0x00FF;	// EXTICR3 clear
-	SYSCFG->EXTICR[2] |= 0x0087;	// EXTI8 -> GPIOH, EXTI9 -> GPIOI	
-    SYSCFG->EXTICR[3] &= ~0xF000;	// EXTICR4 clear
-    SYSCFG->EXTICR[3] |= 0x7000;	// EXTI15 -> GPIOH
+    SYSCFG->EXTICR[2] &= ~0x000F;	// EXTICR3 clear
+	SYSCFG->EXTICR[2] |= 0x0007;	// EXTI8 -> GPIOH
+    SYSCFG->EXTICR[3] &= ~0xFF00;	// EXTICR4 clear
+    SYSCFG->EXTICR[3] |= 0x7800;	// EXTI14 -> GPIOI, EXTI15 -> GPIOH
 	
-	EXTI->FTSR |= 0x8300;			// EXTI8,9,15: Falling Trigger Enable  
-	EXTI->IMR  &= ~0x8300;			// EXTI8,9,15: IMR Reg 초기화
-	EXTI->IMR  |= 0x8300;			// EXTI8,9,15: UnMasked (Interrupt Enable) 설정
+	EXTI->FTSR |= 0xC100;			// EXTI8,14,15: Falling Trigger Enable  
+	EXTI->IMR  &= ~0xC100;			// EXTI8,14,15: IMR Reg 초기화
+	EXTI->IMR  |= 0xC100;			// EXTI8,14,15: UnMasked (Interrupt Enable) 설정
 
 	NVIC->ISER[0] |= ( 1 << 23  );			// Enable 'Global Interrupt EXTI8,9'
     NVIC->ISER[1] |= ( 1 << (40 - 32) );	// Enable 'Global Interrupt EXTI15'
@@ -186,7 +181,7 @@ void EXTI9_5_IRQHandler(void)
 	if(EXTI->PR & 0x0100)		// EXTI8 Interrupt Pending(발생) 여부?
 	{
 		EXTI->PR |= 0x0100;			// Pending bit Clear
-        //EXTI->IMR  &= ~0x8000;		// EXTI15: Masked (Interrupt Enable) 설정
+        EXTI->IMR  &= ~0x8000;		// EXTI15: Masked (Interrupt Enable) 설정
         GPIOG->ODR |= 0x0001; 	    // LED0 ON
         GPIOG->ODR &= ~0x0080; 	    // LED7 OFF 
         Red_Turn = 1;               //적돌 Enable
@@ -195,36 +190,36 @@ void EXTI9_5_IRQHandler(void)
         LCD_DisplayText(9, 0, "*");
 		LCD_DisplayText(9, 18, " ");
     }
-	//착돌 (EXTI9, JOY_PUSH(PI5))
-	else if(EXTI->PR & 0x0200)		    // EXTI9 Interrupt Pending(발생) 여부?
+}
+
+/* EXTI10~15 인터럽트 핸들러(ISR: Interrupt Service Routine) */
+void EXTI15_10_IRQHandler(void)
+{
+    //착돌 (EXTI14, JOY_PUSH(PI5))
+	if(EXTI->PR & 0x4000)		    // EXTI10 Interrupt Pending(발생) 여부?
 	{
-		EXTI->PR |= 0x0200;			    // Pending bit Clear
-        /*if(Red_Turn == 1 && JOY_Scan()==JOY_PUSH)          //적돌일때 착돌
+		EXTI->PR |= 0x4000;			    // Pending bit Clear
+        if(Red_Turn == 1)          //적돌일때 착돌
         {
             EXTI->IMR  &= ~0x0100;		// EXTI7: Masked (Interrupt Enable) 설정
             EXTI->IMR  |= 0x8000;		// EXTI15: unMasked (Interrupt Enable) 설정
             LCD_SetBrushColor(RGB_RED);                // 사각형 배경색 설정
             LCD_DrawFillRect(22 + Red_x*10, 22 + Red_y*10, 7, 7);  		 // 사각형 내부 채우기
         }
-        else if(Blue_Turn == 1 && JOY_Scan()==JOY_PUSH)     //청돌일때 착돌
+        else if(Blue_Turn == 1)     //청돌일때 착돌
         {
             EXTI->IMR  &= ~0x8000;		// EXTI15: Masked (Interrupt Enable) 설정
             EXTI->IMR  |= 0x0100;		// EXTI7: unMasked (Interrupt Enable) 설정
             LCD_SetBrushColor(RGB_BLUE);                // 사각형 배경색 설정
             LCD_DrawFillRect(22 + Blue_x*10, 22 + Blue_y*10, 7, 7);  		 // 사각형 내부 채우기
-        }*/
+        }
 		BEEP();								// 부저 1회
     }
-}
-
-/* EXTI10~15 인터럽트 핸들러(ISR: Interrupt Service Routine) */
-void EXTI15_10_IRQHandler(void)
-{
 	// 청돌선택 (EXTI15,SW 7)
-	if(EXTI->PR & 0x8000)			// EXTI11 Interrupt Pending(발생) 여부?
+	else if(EXTI->PR & 0x8000)			// EXTI11 Interrupt Pending(발생) 여부?
 	{
 		EXTI->PR |= 0x8000;			// Pending bit Clear
-        //EXTI->IMR  &= ~0x0100;		// EXTI7: Masked (Interrupt Enable) 설정
+        EXTI->IMR  &= ~0x0100;		// EXTI7: Masked (Interrupt Enable) 설정
         GPIOG->ODR &= ~0x0001; 	    // LED0 OFF
         GPIOG->ODR |= 0x0080; 	    // LED7 ON
 		Red_Turn = 0;               //청돌 Enable
