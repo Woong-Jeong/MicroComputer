@@ -271,7 +271,7 @@ void USART_BRR_Configuration(uint32_t USART_BaudRate)
 
 
 
-
+//test
 
 
 /* Buzzer: Beep for 30 ms */
@@ -344,5 +344,6 @@ void TIM6_DAC_IRQHandler(void)
 			if(now_H >= 0xF)	now_H = 0;
 		}
         NowTime();
+		NowTime();
 	}
 }
